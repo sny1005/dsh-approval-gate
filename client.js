@@ -261,6 +261,11 @@ window.__ModuleLoader__.load({
         'settings.thresholdLabel': '确认阈值 N：',
         'settings.thresholdHint': '满 {th} 次后第 {next} 次起自动',
         'settings.timeoutLabel': 'Flash 判断超时(ms)：',
+        'settings.modelProviderLabel': '判定模型 Provider：',
+        'settings.modelModelLabel': '判定模型 Model：',
+        'settings.modelFollowHint': '留空跟随会话默认模型',
+        'settings.modelHint': '两项都填写后固定判定路由（风险预判与同类验证都走该模型，热更新即时生效）；留空跟随会话默认模型。',
+        'settings.modelEffective': '当前生效路由：{route}。',
         'api.setOnly': '{kind} 使用 set 操作',
         'api.invalidValue': '无效数值',
         'api.learningRemoveOnly': 'learning 仅支持 remove',
@@ -394,6 +399,11 @@ window.__ModuleLoader__.load({
         'settings.thresholdLabel': 'Confirmation threshold N:',
         'settings.thresholdHint': 'After {th} confirmations, the {next}th onwards auto-approves',
         'settings.timeoutLabel': 'Flash judgment timeout (ms):',
+        'settings.modelProviderLabel': 'Judge model provider:',
+        'settings.modelModelLabel': 'Judge model model:',
+        'settings.modelFollowHint': 'empty = follow the session agent model',
+        'settings.modelHint': 'Set both fields to pin the judge route (risk judgment and similarity verification both use it; hot reload applies immediately); leave empty to follow the session agent model.',
+        'settings.modelEffective': 'Effective route: {route}.',
         'api.setOnly': '{kind} only supports the set operation',
         'api.invalidValue': 'Invalid number',
         'api.learningRemoveOnly': 'learning only supports remove',
@@ -962,6 +972,10 @@ window.__ModuleLoader__.load({
       const [newRule, setNewRule] = React.useState({ tool: '', mode: '', category: '', contains: '' })
       const [threshold, setThreshold] = React.useState('3')
       const [timeoutMs, setTimeoutMs] = React.useState('20000')
+      // 判定模型路由（留空跟随会话默认模型）+ 当前生效路由（host GET 返回）
+      const [judgeProvider, setJudgeProvider] = React.useState('')
+      const [judgeModel, setJudgeModel] = React.useState('')
+      const [effectiveModel, setEffectiveModel] = React.useState(null)
 
       const load = function () {
         fetch('/api/auto-approve/rules', { headers: { 'cache-control': 'no-cache' } })
@@ -971,6 +985,9 @@ window.__ModuleLoader__.load({
               setSnapshot(data)
               setThreshold(String(data.config.riskyThreshold))
               setTimeoutMs(String(data.config.judgeTimeoutMs))
+              setJudgeProvider(String(data.config.judgeProvider || ''))
+              setJudgeModel(String(data.config.judgeModel || ''))
+              setEffectiveModel(data.effectiveModel || null)
               setError(null)
             } else {
               setError(t('settings.loadFailed', { detail: JSON.stringify(data).slice(0, 200) }))
@@ -1245,6 +1262,35 @@ window.__ModuleLoader__.load({
               onClick: function () { api({ op: 'set', kind: 'judgeTimeoutMs', value: Number(timeoutMs) }) },
             }, t('common.save')),
           ),
+          // ---- 判定模型路由（v0.6.0+，类似 dsh-smart-title 的可配置模型）：留空跟随会话默认模型 ----
+          React.createElement('div', { className: 'ag-set-row' },
+            React.createElement('span', { className: 'ag-set-item-meta' }, t('settings.modelProviderLabel')),
+            React.createElement('input', {
+              className: 'ag-set-input', style: { width: 180 }, value: judgeProvider,
+              placeholder: t('settings.modelFollowHint'), spellCheck: false,
+              onChange: function (e) { setJudgeProvider(e.target.value) },
+            }),
+            React.createElement('button', {
+              type: 'button', className: 'ag-set-btn', disabled: busy,
+              onClick: function () { api({ op: 'set', kind: 'judgeProvider', value: judgeProvider.trim() }) },
+            }, t('common.save')),
+          ),
+          React.createElement('div', { className: 'ag-set-row' },
+            React.createElement('span', { className: 'ag-set-item-meta' }, t('settings.modelModelLabel')),
+            React.createElement('input', {
+              className: 'ag-set-input', style: { width: 180 }, value: judgeModel,
+              placeholder: t('settings.modelFollowHint'), spellCheck: false,
+              onChange: function (e) { setJudgeModel(e.target.value) },
+            }),
+            React.createElement('button', {
+              type: 'button', className: 'ag-set-btn', disabled: busy,
+              onClick: function () { api({ op: 'set', kind: 'judgeModel', value: judgeModel.trim() }) },
+            }, t('common.save')),
+          ),
+          React.createElement('p', { className: 'ag-set-card-sub' },
+            t('settings.modelHint') + (effectiveModel && effectiveModel.provider && effectiveModel.model
+              ? t('settings.modelEffective', { route: effectiveModel.provider + '/' + effectiveModel.model })
+              : '')),
         ),
 
         // ---- 反馈 ----

@@ -436,6 +436,9 @@ function getRulesSnapshot() {
       hardCategories: config.hardCategories || [],
       riskyThreshold: config.riskyThreshold || 3,
       judgeTimeoutMs: config.judgeTimeoutMs || 20000,
+      // 判定模型路由（留空跟随会话默认模型）
+      judgeProvider: config.judgeProvider || '',
+      judgeModel: config.judgeModel || '',
       learning: { enabled: learning.enabled !== false }
     },
     learning: {
@@ -507,10 +510,20 @@ function ensureAutoApprovePreset() {
   }
 }
 
-/** 规则修改：op=add|remove|set，kind=allowRules|denyRules|denyKeywords|hardCategories|riskyThreshold|judgeTimeoutMs */
+/** 规则修改：op=add|remove|set，kind=allowRules|denyRules|denyKeywords|hardCategories|riskyThreshold|judgeTimeoutMs|judgeProvider|judgeModel */
 // 失败返回除人类可读 error 外附稳定 code（+params）：client 按码本地化展示，未知码回退 error 原文
 function applyRuleOp(op, kind, value) {
   reloadConfig()
+
+  // 判定模型路由（字符串类配置）：set 写入（trim），置空 = 跟随会话默认模型
+  if (kind === 'judgeProvider' || kind === 'judgeModel') {
+    if (op !== 'set') return { ok: false, code: 'setOnly', params: { kind }, error: `${kind} 使用 set 操作` }
+    const s = String(value == null ? '' : value).trim()
+    config[kind] = s
+    saveJson(ALLOWLIST_PATH, config)
+    audit(`CONFIG  ${kind} → ${s || '(空，跟随会话默认模型)'}`)
+    return { ok: true, set: true, value: s }
+  }
 
   // 数值类配置（阈值/超时）
   if (kind === 'riskyThreshold' || kind === 'judgeTimeoutMs') {
@@ -664,6 +677,9 @@ function normalizeConfig(raw) {
   cfg.hardCategories = cfg.hardCategories || DEFAULT_HARD_CATEGORIES
   cfg.riskyThreshold = cfg.riskyThreshold || 3
   cfg.judgeTimeoutMs = cfg.judgeTimeoutMs || 20000
+  // 判定模型路由（v0.6.0+）：两项都配置时固定走该路由，留空跟随会话默认模型
+  cfg.judgeProvider = typeof cfg.judgeProvider === 'string' ? cfg.judgeProvider : ''
+  cfg.judgeModel = typeof cfg.judgeModel === 'string' ? cfg.judgeModel : ''
   cfg.learning = cfg.learning || { enabled: true }
   return cfg
 }
@@ -678,6 +694,8 @@ if (!config || typeof config !== 'object') {
     hardCategories: DEFAULT_HARD_CATEGORIES,
     riskyThreshold: 3,
     judgeTimeoutMs: 20000,
+    judgeProvider: '',
+    judgeModel: '',
     learning: { enabled: true }
   }
   saveJson(ALLOWLIST_PATH, config)
@@ -849,7 +867,8 @@ export default {
             }
             try {
               if (req.method === 'GET' || req.method === 'HEAD') {
-                return send(200, getRulesSnapshot())
+                // effectiveModel：当前实际生效的判定路由（设置页展示；resolveModel 在 apply 闭包内）
+                return send(200, Object.assign({}, getRulesSnapshot(), { effectiveModel: resolveModel() }))
               }
               if (req.method === 'POST') {
                 const body = await readBody(req)
@@ -1096,7 +1115,16 @@ export default {
       if (offSnapClearRoute) { try { offSnapClearRoute() } catch (e) {} }
     })
 
+    /**
+     * 判定模型路由（flash 风险预判与同类验证共用）。
+     * 解析顺序：allowlist.json 的 judgeProvider+judgeModel（两项都配置时固定走该路由，
+     * 热更新即时生效，类似 dsh-smart-title 的可配置模型）→ 会话默认模型
+     * （agentDefaultModel.currentSelection）→ 内置 Flash 兜底。
+     */
     const resolveModel = () => {
+      const overrideProvider = typeof config.judgeProvider === 'string' ? config.judgeProvider.trim() : ''
+      const overrideModel = typeof config.judgeModel === 'string' ? config.judgeModel.trim() : ''
+      if (overrideProvider && overrideModel) return { provider: overrideProvider, model: overrideModel }
       try {
         const sel = agentDefaultModel && typeof agentDefaultModel.currentSelection === 'function'
           ? agentDefaultModel.currentSelection()
