@@ -1287,7 +1287,9 @@ export default {
         if (!session) return next()
         let preset
         try {
-          preset = permissionPresets.current(session.events)
+          // dsh-permission-presets.current(session) 接收 Session 对象本身（内部读 session.header）；
+          // 传 session.events 恒为 undefined → TypeError → 静默回退人工，门控永远不生效
+          preset = permissionPresets.current(session)
         } catch (error) {
           console.error(`[${NAME}] permissionPresets.current failed`, error)
           return next()
