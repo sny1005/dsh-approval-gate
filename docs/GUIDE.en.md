@@ -104,7 +104,7 @@ Data files live under `$DSH_HOME/auto-approve/` (default `~/.dsh/auto-approve/`)
 - `hardCategories`: flash `RISKY` in these categories → directly human (no counting, no learning)
 - `riskyThreshold`: neutral confirmation threshold (default 3) — after N-1 human confirmations of the same tool+mode+category, the Nth occurrence auto-approves and persists a rule
 - `judgeTimeoutMs`: single flash judgment timeout (default 20000ms; auto-retries once, then goes to human)
-- `judgeProvider` / `judgeModel` (v0.6.0+, default empty): pin the judge model route. When **both** are set, every judge call (risk judgment and similarity verification) uses that provider/model — e.g. `"deepseek-official"` + `"deepseek-flash"` for a cheap fixed judge (like dsh-smart-title). Empty fields keep the default behavior: the judge follows the session's current agent model, falling back to the built-in `deepseek-official` / `deepseek-v4-flash`
+- `judgeProvider` / `judgeModel` (v0.6.0+, default empty): pin the judge model route. When **both** are set, every judge call (risk judgment and similarity verification) uses that provider/model — e.g. `"deepseek-official"` + `"deepseek-flash"` for a cheap fixed judge (like dsh-smart-title). Empty fields keep the default behavior: the judge follows the session's current agent model, falling back to the built-in `deepseek-official` / `deepseek-flash`
 
 ## Usage
 
@@ -172,7 +172,7 @@ Neutral confirmation learning: each human approval of the same tool|mode|categor
 - Mounted at the front of the `approval/request` waterfall (`prepend: true`, before the web answerer)
 - Gate: `permissionPresets.current(session) === 'auto-approve'`
 - DSH approval fires on sandbox escalation; `reason` is always `escalate sandbox to <mode>: <justification>`, with `mode` in `workspace-write` / `danger-full-access`
-- Judge model route: `judgeProvider` + `judgeModel` (both set, hot-reloaded) → session agent default model (`agentDefaultModel.currentSelection`) → built-in `deepseek-official` / `deepseek-v4-flash` fallback
+- Judge model route: `judgeProvider` + `judgeModel` (both set, hot-reloaded) → session agent default model (`agentDefaultModel.currentSelection`) → built-in `deepseek-official` / `deepseek-flash` fallback
 - flash judgment: `reasoningEffort: 'off'` + `maxTokens: 256`, outputs `SAFE` or `RISKY:<category>`
 - Timeout: `AbortController` signal into `llm.stream` (cancellable), `Promise.race` + `ctx.timeout(judgeTimeoutMs)`, abort + one retry
 - Similarity verification: current operation context + confirmed samples to flash (`SAME`/`DIFFERENT`); failure counts as DIFFERENT

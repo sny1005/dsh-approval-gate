@@ -104,7 +104,7 @@ dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
 - `hardCategories`：flash 判 RISKY 且命中这些类别 → 直接转人工（不计数、不学习）
 - `riskyThreshold`：中立类别的人工确认阈值（默认 3）——同一「工具+模式+类别」被人工确认 N-1 次后，第 N 次起自动放行并沉淀规则
 - `judgeTimeoutMs`：单次 flash 判断超时（默认 20000ms，超时自动重试 1 次，仍超时转人工）
-- `judgeProvider` / `judgeModel`（v0.6.0+，默认空）：判定模型路由。**两项都配置**时，所有判定调用（风险预判与同类验证）固定走该 provider/model——如 `"deepseek-official"` + `"deepseek-flash"` 固定用便宜的 Flash 判定（类似 dsh-smart-title 的可配置模型）。留空保持默认行为：跟随会话当前默认模型，取不到时回退内置 `deepseek-official` / `deepseek-v4-flash`
+- `judgeProvider` / `judgeModel`（v0.6.0+，默认空）：判定模型路由。**两项都配置**时，所有判定调用（风险预判与同类验证）固定走该 provider/model——如 `"deepseek-official"` + `"deepseek-flash"` 固定用便宜的 Flash 判定（类似 dsh-smart-title 的可配置模型）。留空保持默认行为：跟随会话当前默认模型，取不到时回退内置 `deepseek-official` / `deepseek-flash`
 
 ## 使用
 
@@ -172,7 +172,7 @@ DSH 设置面板新增「自动审批」分区（settings.section，样式与 DS
 - 挂载于 `approval/request` 瀑布最前（`prepend: true`，先于 web answerer 接单）
 - 门控：`permissionPresets.current(session) === 'auto-approve'`
 - DSH 审批触发点是沙箱越界，`reason` 固定为 `escalate sandbox to <mode>: <justification>`，`mode` 仅 `workspace-write` / `danger-full-access` 两级
-- 判定模型路由：`judgeProvider` + `judgeModel`（两项都配置，热更新即时生效）→ 会话默认模型（`agentDefaultModel.currentSelection`）→ 内置 `deepseek-official` / `deepseek-v4-flash` 兜底
+- 判定模型路由：`judgeProvider` + `judgeModel`（两项都配置，热更新即时生效）→ 会话默认模型（`agentDefaultModel.currentSelection`）→ 内置 `deepseek-official` / `deepseek-flash` 兜底
 - flash 判定：`reasoningEffort: 'off'` + `maxTokens: 256`，输出 `SAFE` 或 `RISKY:<category>`
 - 超时兜底：`AbortController` 传入 `llm.stream` 的 signal（可取消底层请求），`Promise.race` + `ctx.timeout(judgeTimeoutMs)`，超时 abort 并重试 1 次
 - 同类验证：把当前操作背景/目的 + 用户确认样本交给 flash 语义判断（`SAME`/`DIFFERENT`），失败按 DIFFERENT 处理

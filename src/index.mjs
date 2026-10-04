@@ -1135,7 +1135,8 @@ export default {
       } catch (error) {
         console.error(`[${NAME}] agentDefaultModel.currentSelection() failed`, error)
       }
-      return { provider: 'deepseek-official', model: 'deepseek-v4-flash' }
+      // deepseek-flash：默认模型目录的 Flash 条目（与 dsh-llm-deepseek 默认目录、dsh-smart-title 默认路由一致）
+      return { provider: 'deepseek-official', model: 'deepseek-flash' }
     }
 
     /**
