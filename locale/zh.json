@@ -1,0 +1,6 @@
+{
+  "meta": {
+    "title": "自动审批门控",
+    "description": "DeepSeek Harness 自动审批门控：Flash 预判每次沙箱越界——可回补操作自动放行、危险转人工（fail-safe），并提供界面化人工审查。"
+  }
+}

@@ -489,7 +489,7 @@ function ensureAutoApprovePreset() {
     }
     if (presetsIdx === -1) {
       // permission 条目存在但没有 presets 键：在 config 下补 presets（简化处理）
-      return { ok: false, status: 'no-presets-key', needRestart: false, error: 'permission 条目缺少 presets 键，请手动添加' }
+      return { ok: false, status: 'no-presets-key', needRestart: false, code: 'noPresetsKey', error: 'permission 条目缺少 presets 键，请手动添加' }
     }
     // 从 presetsIdx 往下找最后一个 presets 子项行（缩进 6 且非注释空行），直到顶层条目/文件尾
     let insertAt = presetsIdx
@@ -508,14 +508,15 @@ function ensureAutoApprovePreset() {
 }
 
 /** 规则修改：op=add|remove|set，kind=allowRules|denyRules|denyKeywords|hardCategories|riskyThreshold|judgeTimeoutMs */
+// 失败返回除人类可读 error 外附稳定 code（+params）：client 按码本地化展示，未知码回退 error 原文
 function applyRuleOp(op, kind, value) {
   reloadConfig()
 
   // 数值类配置（阈值/超时）
   if (kind === 'riskyThreshold' || kind === 'judgeTimeoutMs') {
-    if (op !== 'set') return { ok: false, error: `${kind} 使用 set 操作` }
+    if (op !== 'set') return { ok: false, code: 'setOnly', params: { kind }, error: `${kind} 使用 set 操作` }
     const n = Number(value)
-    if (!Number.isFinite(n) || n <= 0) return { ok: false, error: '无效数值' }
+    if (!Number.isFinite(n) || n <= 0) return { ok: false, code: 'invalidValue', error: '无效数值' }
     config[kind] = n
     saveJson(ALLOWLIST_PATH, config)
     audit(`CONFIG  ${kind} → ${n}`)
@@ -526,9 +527,9 @@ function applyRuleOp(op, kind, value) {
   if (!Array.isArray(list)) {
     // 学习状态终止：kind='learning'，value=key（tool|mode|category）
     if (kind === 'learning') {
-      if (op !== 'remove') return { ok: false, error: 'learning 仅支持 remove' }
+      if (op !== 'remove') return { ok: false, code: 'learningRemoveOnly', error: 'learning 仅支持 remove' }
       const key = String(value || '').trim()
-      if (!key) return { ok: false, error: 'key 不能为空' }
+      if (!key) return { ok: false, code: 'emptyKey', error: 'key 不能为空' }
       if (learning.stats[key] !== undefined || learning.history[key] !== undefined) {
         delete learning.stats[key]
         delete learning.history[key]
@@ -536,23 +537,23 @@ function applyRuleOp(op, kind, value) {
         audit(`LEARN   ${key} 用户终止学习`)
         return { ok: true, removed: true }
       }
-      return { ok: false, error: '未找到该学习项' }
+      return { ok: false, code: 'learningNotFound', error: '未找到该学习项' }
     }
-    return { ok: false, error: `未知规则类型: ${kind}` }
+    return { ok: false, code: 'unknownKind', params: { kind }, error: `未知规则类型: ${kind}` }
   }
 
   if (op === 'add') {
     if (kind === 'denyKeywords' || kind === 'hardCategories') {
       const str = String(value || '').trim()
-      if (!str) return { ok: false, error: '值不能为空' }
+      if (!str) return { ok: false, code: 'emptyValue', error: '值不能为空' }
       if (!list.includes(str)) {
         list.push(str)
         audit(`CONFIG  ${kind} + ${str}`)
       }
     } else {
-      if (!value || typeof value !== 'object') return { ok: false, error: '规则必须是对象' }
+      if (!value || typeof value !== 'object') return { ok: false, code: 'ruleObjectRequired', error: '规则必须是对象' }
       const hasAny = value.tool || value.mode || value.category || value.contains
-      if (!hasAny) return { ok: false, error: '规则至少需要 tool/mode/category/contains 之一' }
+      if (!hasAny) return { ok: false, code: 'ruleFieldRequired', error: '规则至少需要 tool/mode/category/contains 之一' }
       const dup = list.some((r) => r && r.tool === value.tool && r.mode === value.mode && r.category === value.category && r.contains === value.contains)
       if (!dup) {
         if (!value.description) value.description = '用户自定义'
@@ -578,12 +579,12 @@ function applyRuleOp(op, kind, value) {
       }
       if (list.length !== before) audit(`CONFIG  ${kind} - ${JSON.stringify(v)}`)
     }
-    if (list.length === before) return { ok: false, error: '未找到匹配的规则' }
+    if (list.length === before) return { ok: false, code: 'ruleNotFound', error: '未找到匹配的规则' }
     saveJson(ALLOWLIST_PATH, config)
     return { ok: true, removed: true }
   }
 
-  return { ok: false, error: `未知操作: ${op}` }
+  return { ok: false, code: 'unknownOp', params: { op }, error: `未知操作: ${op}` }
 }
 
 const CATEGORY_LABELS = {
@@ -857,7 +858,7 @@ export default {
                 const result = applyRuleOp(op, kind, body.value)
                 return send(result.ok ? 200 : 400, result)
               }
-              return send(405, { ok: false, error: 'method not allowed' })
+              return send(405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
             } catch (e) {
               send(400, { ok: false, error: String((e && e.message) || e) })
             }
@@ -878,7 +879,7 @@ export default {
               if (req.method === 'POST') {
                 return send(200, ensureAutoApprovePreset())
               }
-              return send(405, { ok: false, error: 'method not allowed' })
+              return send(405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
             } catch (e) {
               send(400, { ok: false, error: String((e && e.message) || e) })
             }
@@ -925,7 +926,7 @@ export default {
           return { ok: true, via: 'followup' }
         }
       }
-      return { ok: false, error: '没有可用的消息投递通道' }
+      return { ok: false, code: 'noChannel', error: '没有可用的消息投递通道' }
     }
 
     try {
@@ -940,18 +941,18 @@ export default {
           path: '/api/auto-approve/diff',
           handler: async (req, res) => {
             try {
-              if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { ok: false, error: 'method not allowed' })
+              if (req.method !== 'GET' && req.method !== 'HEAD') return send(res, 405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
               const url = new URL(req.url, 'http://localhost')
               const eventId = Number.parseInt(url.searchParams.get('eventId') || '', 10)
               const path = url.searchParams.get('path') || ''
-              if (!Number.isInteger(eventId) || !path) return send(res, 400, { ok: false, error: 'eventId/path 必填' })
+              if (!Number.isInteger(eventId) || !path) return send(res, 400, { ok: false, code: 'missingParams', params: { fields: 'eventId/path' }, error: 'eventId/path 必填' })
               const snaps = loadEventSnapshots(eventId)
               // client 传的是 justification 中的原始路径（可能绝对/相对/裸文件名），多基准对齐快照的绝对路径
               const base = resolveAbsPath(path)
               const baseName = String(path).split('/').pop()
               const snap = snaps.find((s) => s.path === base || s.path === path)
                 || snaps.find((s) => s.path.endsWith('/' + path) || (baseName && s.path.endsWith('/' + baseName)))
-              if (!snap) return send(res, 404, { ok: false, error: '该事件没有此文件的快照' })
+              if (!snap) return send(res, 404, { ok: false, code: 'snapshotNotFound', error: '该事件没有此文件的快照' })
               const before = snap.content
               const after = readSnapshotFile(snap.path)
               const result = diffLines(before, after == null ? null : after)
@@ -976,11 +977,11 @@ export default {
           path: '/api/auto-approve/revert',
           handler: async (req, res) => {
             try {
-              if (req.method !== 'POST') return send(res, 405, { ok: false, error: 'method not allowed' })
+              if (req.method !== 'POST') return send(res, 405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
               const body = await readBody(req)
               const sessionId = String(body.sessionId || '')
               const eventId = Number.parseInt(String(body.eventId || ''), 10)
-              if (!sessionId || !Number.isInteger(eventId)) return send(res, 400, { ok: false, error: 'sessionId/eventId 必填' })
+              if (!sessionId || !Number.isInteger(eventId)) return send(res, 400, { ok: false, code: 'missingParams', params: { fields: 'sessionId/eventId' }, error: 'sessionId/eventId 必填' })
               // 读取事件信息组装撤销指令
               const event = (() => {
                 try {
@@ -995,7 +996,7 @@ export default {
                 } catch { /* 无 */ }
                 return null
               })()
-              if (!event) return send(res, 404, { ok: false, error: '未找到该事件' })
+              if (!event) return send(res, 404, { ok: false, code: 'eventNotFound', error: '未找到该事件' })
               const files = (event.files || []).map((f) => '`' + f + '`').join('、')
               const snapDir = SNAPSHOTS_DIR
               // 快照缺失保护：快照被清除后，撤销指令应如实告知 agent，避免其盲目恢复
@@ -1058,7 +1059,7 @@ export default {
           path: '/api/auto-approve/snapshots-clear',
           handler: async (req, res) => {
             try {
-              if (req.method !== 'POST') return send(res, 405, { ok: false, error: 'method not allowed' })
+              if (req.method !== 'POST') return send(res, 405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
               const body = await readBody(req)
               const filterSession = String((body && body.sessionId) || '')
               let removed = 0
