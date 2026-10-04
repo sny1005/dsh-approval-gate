@@ -2,7 +2,7 @@
 
 > Home: [English](../README.en.md) · [简体中文](../README.md) · Guide: [English](GUIDE.en.md) · [中文](GUIDE.md)
 
-DeepSeek Harness auto-approval gate plugin v0.5.0: **minimal human intervention — only operations that must be confirmed go to a human (fail-safe)**.
+DeepSeek Harness auto-approval gate plugin v0.6.0: **minimal human intervention — only operations that must be confirmed go to a human (fail-safe)**.
 
 When a session's permission preset is `auto-approve` (Auto Approval (Flash)), every approval request (sandbox escalation) is judged through this pipeline:
 
@@ -92,6 +92,8 @@ Data files live under `$DSH_HOME/auto-approve/` (default `~/.dsh/auto-approve/`)
   "hardCategories": ["deletion", "credential", "remote", "system", "bulk"],
   "riskyThreshold": 3,
   "judgeTimeoutMs": 20000,
+  "judgeProvider": "",
+  "judgeModel": "",
   "learning": { "enabled": true }
 }
 ```
@@ -102,6 +104,7 @@ Data files live under `$DSH_HOME/auto-approve/` (default `~/.dsh/auto-approve/`)
 - `hardCategories`: flash `RISKY` in these categories → directly human (no counting, no learning)
 - `riskyThreshold`: neutral confirmation threshold (default 3) — after N-1 human confirmations of the same tool+mode+category, the Nth occurrence auto-approves and persists a rule
 - `judgeTimeoutMs`: single flash judgment timeout (default 20000ms; auto-retries once, then goes to human)
+- `judgeProvider` / `judgeModel` (v0.6.0+, default empty): pin the judge model route. When **both** are set, every judge call (risk judgment and similarity verification) uses that provider/model — e.g. `"deepseek-official"` + `"deepseek-flash"` for a cheap fixed judge (like dsh-smart-title). Empty fields keep the default behavior: the judge follows the session's current agent model, falling back to the built-in `deepseek-official` / `deepseek-v4-flash`
 
 ## Usage
 
@@ -116,7 +119,7 @@ A new "Auto Approval" section in the DSH settings panel (`settings.section`, sty
 - **① DENY · deny list** (`denyKeywords`): view/add/remove dangerous keywords (removing a predefined keyword asks for confirmation)
 - **② Allow list** (`allowRules`): view (tagged predefined / learned / user) / add (tool/mode/category/contains form) / remove — e.g. `tool=edit, mode=danger-full-access` auto-approves out-of-workspace edits
 - **③ denyRules · always-human**: rejection-upgraded rules, view/remove
-- **④ Flash · thresholds & timeout**: edit `riskyThreshold` (auto-approve starts at N+1th occurrence after N confirmations) / `judgeTimeoutMs` directly
+- **④ Flash · thresholds, timeout & judge model**: edit `riskyThreshold` (auto-approve starts at N+1th occurrence after N confirmations) / `judgeTimeoutMs` directly; the two **judge model** rows (`judgeProvider` / `judgeModel`) pin the judge route when both are set (empty = follow the session agent model), and the card shows the currently effective route (v0.6.0+)
 - **⑤ Learning · in progress**: confirmation counts (n/N) + samples with a **"Stop" button** to intervene (removes count and samples, restarts learning)
 
 All changes go through `POST /api/auto-approve/rules` into `allowlist.json` — **hot-reloaded immediately** (no restart); `POST /api/auto-approve/setup` handles one-click setup.
@@ -167,8 +170,9 @@ Neutral confirmation learning: each human approval of the same tool|mode|categor
 ## Technical Notes
 
 - Mounted at the front of the `approval/request` waterfall (`prepend: true`, before the web answerer)
-- Gate: `permissionPresets.current(session.events) === 'auto-approve'`
+- Gate: `permissionPresets.current(session) === 'auto-approve'`
 - DSH approval fires on sandbox escalation; `reason` is always `escalate sandbox to <mode>: <justification>`, with `mode` in `workspace-write` / `danger-full-access`
+- Judge model route: `judgeProvider` + `judgeModel` (both set, hot-reloaded) → session agent default model (`agentDefaultModel.currentSelection`) → built-in `deepseek-official` / `deepseek-v4-flash` fallback
 - flash judgment: `reasoningEffort: 'off'` + `maxTokens: 256`, outputs `SAFE` or `RISKY:<category>`
 - Timeout: `AbortController` signal into `llm.stream` (cancellable), `Promise.race` + `ctx.timeout(judgeTimeoutMs)`, abort + one retry
 - Similarity verification: current operation context + confirmed samples to flash (`SAME`/`DIFFERENT`); failure counts as DIFFERENT
@@ -176,6 +180,15 @@ Neutral confirmation learning: each human approval of the same tool|mode|categor
 - Review UI: host writes `events.jsonl` + `GET /api/auto-approve/events` (sessionId filter + since cursor); client polls and renders
 - Snapshots & diff: approval happens before the write, so the auto-approval event saves `snapshots/<eventId>.json` at record time (text only, ≤256KB per file, ≤5 per event); diff uses approximate line matching and returns changed lines only (up to 500)
 - Revert delivery: `sendToSession` prefers `typertGateway.invoke({namespace:'session', method:'prompt'})` (queue mode), falling back to `agent.followup`
+
+## UI Language (v0.6.0+)
+
+All plugin UI copy (notice strip, Approval history view, diff panel, settings section) is localized through the DSH client locale system and follows the language selected in **Settings → General → Language** (简体中文 / English), switching live without a reload. The plugin's display title and description on the DSH Plugins page are localized too (shipped as `locale/en.json` + `locale/zh.json`).
+
+Two things deliberately stay untranslated:
+
+- The permission-preset `name` / `description` written into your `cordis.patch.yml` by the one-click setup are plain user-editable text (DSH renders custom preset names verbatim) — rename them freely to whatever language you prefer.
+- Host-side console and audit-log lines (diagnostics) remain Chinese.
 
 ## License
 

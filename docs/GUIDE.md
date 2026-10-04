@@ -2,7 +2,7 @@
 
 > 首页：[简体中文](../README.md) · [English](../README.en.md) · 指南：[中文](GUIDE.md) · [English](GUIDE.en.md)
 
-DeepSeek Harness 自动审批门控插件 v0.5.0：**最小人工介入，只把必须人工确认的操作转人工（fail-safe）**。
+DeepSeek Harness 自动审批门控插件 v0.6.0：**最小人工介入，只把必须人工确认的操作转人工（fail-safe）**。
 
 当会话的权限预设为 `auto-approve`（自动审批（Flash））时，每次审批请求（沙箱越界）按管道判定：
 
@@ -92,6 +92,8 @@ dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
   "hardCategories": ["deletion", "credential", "remote", "system", "bulk"],
   "riskyThreshold": 3,
   "judgeTimeoutMs": 20000,
+  "judgeProvider": "",
+  "judgeModel": "",
   "learning": { "enabled": true }
 }
 ```
@@ -102,6 +104,7 @@ dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
 - `hardCategories`：flash 判 RISKY 且命中这些类别 → 直接转人工（不计数、不学习）
 - `riskyThreshold`：中立类别的人工确认阈值（默认 3）——同一「工具+模式+类别」被人工确认 N-1 次后，第 N 次起自动放行并沉淀规则
 - `judgeTimeoutMs`：单次 flash 判断超时（默认 20000ms，超时自动重试 1 次，仍超时转人工）
+- `judgeProvider` / `judgeModel`（v0.6.0+，默认空）：判定模型路由。**两项都配置**时，所有判定调用（风险预判与同类验证）固定走该 provider/model——如 `"deepseek-official"` + `"deepseek-flash"` 固定用便宜的 Flash 判定（类似 dsh-smart-title 的可配置模型）。留空保持默认行为：跟随会话当前默认模型，取不到时回退内置 `deepseek-official` / `deepseek-v4-flash`
 
 ## 使用
 
@@ -116,7 +119,7 @@ DSH 设置面板新增「自动审批」分区（settings.section，样式与 DS
 - **① DENY 层 · 黑名单**（denyKeywords）：查看/添加/删除危险词（删除预置词有确认提示）
 - **② 白名单层 · 白名单**（allowRules）：查看（预置/学习沉淀/用户 来源标签）/添加（tool/mode/category/contains 表单）/删除 —— 例：`tool=edit, mode=danger-full-access` → 工作区外 edit 自动放行
 - **③ denyRules 层 · 永久人工**：拒绝升级的规则，查看/移除
-- **④ Flash 判定 · 阈值与超时**：`riskyThreshold`（学习满 N 次后第 N+1 次自动放行）/ `judgeTimeoutMs` 直接修改
+- **④ Flash 判定 · 阈值、超时与判定模型**：`riskyThreshold`（学习满 N 次后第 N+1 次自动放行）/ `judgeTimeoutMs` 直接修改；**判定模型**两行（`judgeProvider` / `judgeModel`）两项都填写时固定判定路由（留空跟随会话默认模型），卡片同时展示当前生效路由（v0.6.0+）
 - **⑤ 学习沉淀 · 正在学习**：展示确认计数（n/N）与样本；**「终止」按钮可介入删除**（删除计数与样本，重新学习）
 
 所有修改通过 `POST /api/auto-approve/rules` 写入 `allowlist.json`，**热更新即时生效**（无需重启）；`POST /api/auto-approve/setup` 负责一键初始化。
@@ -167,8 +170,9 @@ DSH 设置面板新增「自动审批」分区（settings.section，样式与 DS
 ## 技术说明
 
 - 挂载于 `approval/request` 瀑布最前（`prepend: true`，先于 web answerer 接单）
-- 门控：`permissionPresets.current(session.events) === 'auto-approve'`
+- 门控：`permissionPresets.current(session) === 'auto-approve'`
 - DSH 审批触发点是沙箱越界，`reason` 固定为 `escalate sandbox to <mode>: <justification>`，`mode` 仅 `workspace-write` / `danger-full-access` 两级
+- 判定模型路由：`judgeProvider` + `judgeModel`（两项都配置，热更新即时生效）→ 会话默认模型（`agentDefaultModel.currentSelection`）→ 内置 `deepseek-official` / `deepseek-v4-flash` 兜底
 - flash 判定：`reasoningEffort: 'off'` + `maxTokens: 256`，输出 `SAFE` 或 `RISKY:<category>`
 - 超时兜底：`AbortController` 传入 `llm.stream` 的 signal（可取消底层请求），`Promise.race` + `ctx.timeout(judgeTimeoutMs)`，超时 abort 并重试 1 次
 - 同类验证：把当前操作背景/目的 + 用户确认样本交给 flash 语义判断（`SAME`/`DIFFERENT`），失败按 DIFFERENT 处理
@@ -176,6 +180,15 @@ DSH 设置面板新增「自动审批」分区（settings.section，样式与 DS
 - 审查 UI：host 写 `events.jsonl` + `GET /api/auto-approve/events`（按 sessionId 过滤 + since 增量）；client 轮询展示
 - 快照与 diff：审批发生在写入前，自动放行事件落盘时保存 `snapshots/<eventId>.json`（仅文本 ≤256KB、每事件 ≤5 个文件）；diff 用近似逐行匹配只返回变更行（上限 500 行）
 - 撤销投递：`sendToSession` 优先 `typertGateway.invoke({namespace:'session', method:'prompt'})`（queue 模式），失败回退 `agent.followup`
+
+## 界面语言（v0.6.0+）
+
+插件全部界面文案（提示条、审批历史视图、diff 面板、设置页分区）已接入 DSH 客户端 locale 体系，跟随 **设置 → 通用 → 语言**（简体中文 / English）即时切换，无需刷新。插件管理页里的插件展示名称与描述同样本地化（随包附带 `locale/en.json` + `locale/zh.json`）。
+
+两处刻意不翻译：
+
+- 一键初始化写入 `cordis.patch.yml` 的权限预设 `name` / `description` 是用户配置的自由文本（DSH 原样渲染自定义预设名）——按你的语言随意改名即可。
+- host 侧控制台与审计日志行（诊断信息）保持中文。
 
 ## License
 
