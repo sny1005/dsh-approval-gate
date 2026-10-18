@@ -1,5 +1,5 @@
 /**
- * dsh-approval-gate — 自动审批审查界面（浏览器端 bundle）
+ * dsh-approval-gate-plus — 自动审批审查界面（浏览器端 bundle）
  *
  * 提供两处 UI（严格按 DSH 设计语言，--dsw-alias-* tokens）：
  * 1. ✅ 自动放行提示条：conversation.input.dock（输入框上方独立行，order=30，
@@ -9,7 +9,7 @@
  *    （命令、原因、涉及文件、判定路径、时间）
  * 3. 设置页「自动审批」分区：settings.section（order=60），规则管理与一键初始化
  *
- * 文案（v0.6.0+）：所有界面文案注册在 locale 命名空间 dshApprovalGate 下
+ * 文案（v0.6.0+）：所有界面文案注册在 locale 命名空间 dshApprovalGatePlus 下
  * （ctx.locale.register(NS, { zh, en })，随 DSH 设置 → 通用 → 语言 即时切换；
  * 插槽 label 用 thunk 声明，账本投影在 locale revision 变化时经 resolveSlotLabel 重读）。
  * 老版宿主没有 locale 服务时回退 zh 词典直查（fallbackT）。
@@ -18,7 +18,7 @@
  * （events.jsonl 由 host 插件在每次自动放行时追加）。
  */
 window.__ModuleLoader__.load({
-  id: 'dsh-approval-gate',
+  id: 'dsh-approval-gate-plus',
   factory: (require) => {
     var module = { exports: {} }
     var exports = module.exports
@@ -141,10 +141,10 @@ window.__ModuleLoader__.load({
 .ag-snap-bar-spacer{flex:1 1 auto}
 `
 
-    // ================= 界面文案（locale 命名空间 dshApprovalGate，zh/en 双语） =================
+    // ================= 界面文案（locale 命名空间 dshApprovalGatePlus，zh/en 双语） =================
     // 键名规约：common.* 通用、verdict.* 判定路径、reject.* 人工拒绝（前缀+细节组合）、
     // notice.* 提示条、diff.* 对比面板、view.* 审批历史、settings.* 设置页、api.* host 错误码。
-    const NS = 'dshApprovalGate'
+    const NS = 'dshApprovalGatePlus'
     const DICTS = {
       zh: {
         'common.close': '关闭',
@@ -1313,10 +1313,10 @@ window.__ModuleLoader__.load({
             if (!ctx.locale || typeof ctx.locale.register !== 'function') return function () {}
             return ctx.locale.register(NS, DICTS)
           } catch (e) {
-            console.error('[dsh-approval-gate] 注册界面文案失败：' + String((e && e.message) || e))
+            console.error('[dsh-approval-gate-plus] 注册界面文案失败：' + String((e && e.message) || e))
             return function () {}
           }
-        }, 'dsh-approval-gate: dictionaries')
+        }, 'dsh-approval-gate-plus: dictionaries')
         // 翻译函数：优先共享 locale 服务的 bind（跟随语言切换），缺失回退 fallbackT。
         // 插槽 label 用 thunk 引用这里的 t，账本投影在 locale revision 变化时经 resolveSlotLabel 重读。
         const t = (ctx.locale && typeof ctx.locale.bind === 'function') ? ctx.locale.bind(NS) : fallbackT
@@ -1324,11 +1324,11 @@ window.__ModuleLoader__.load({
         let styleEl = null
         try {
           styleEl = document.createElement('style')
-          styleEl.setAttribute('data-plugin-css', 'dsh-approval-gate')
+          styleEl.setAttribute('data-plugin-css', 'dsh-approval-gate-plus')
           styleEl.textContent = CSS
           document.head.appendChild(styleEl)
         } catch (e) {
-          console.error('[dsh-approval-gate] 注入样式失败：' + String((e && e.message) || e))
+          console.error('[dsh-approval-gate-plus] 注入样式失败：' + String((e && e.message) || e))
         }
         ctx.effect(() => {
           return () => {
@@ -1342,7 +1342,7 @@ window.__ModuleLoader__.load({
         // locale: NS 声明后渲染器注入标准 t 席位（props.t），语言切换时出口自动重渲染。
         slots.inject('conversation.input.dock', function () {
           return slots.register(
-            { name: 'conversation.input.dock', id: 'dsh-approval-gate.notice', order: 30, locale: NS },
+            { name: 'conversation.input.dock', id: 'dsh-approval-gate-plus.notice', order: 30, locale: NS },
             function (props) { return React.createElement(NoticeStrip, { slotsProps: props, t: props.t }) },
           )
         })
@@ -1353,7 +1353,7 @@ window.__ModuleLoader__.load({
           return slots.register(
             {
               name: 'conversation.view',
-              id: 'dsh-approval-gate.history',
+              id: 'dsh-approval-gate-plus.history',
               order: 20,
               locale: NS,
               label: function () { return t('view.tab') },
@@ -1368,7 +1368,7 @@ window.__ModuleLoader__.load({
           return slots.register(
             {
               name: 'settings.section',
-              id: 'dsh-approval-gate.settings',
+              id: 'dsh-approval-gate-plus.settings',
               order: 60,
               locale: NS,
               label: function () { return t('settings.nav') },

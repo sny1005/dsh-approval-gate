@@ -1,10 +1,14 @@
 **简体中文** | [English](README.en.md)
 
-# dsh-approval-gate
+# dsh-approval-gate-plus
 
-**DeepSeek Harness 自动审批门控 —— 最小人工介入，安全自动放行、危险转人工（fail-safe）。**
+**DeepSeek Harness 自动审批门控（增强分支）—— 最小人工介入，安全自动放行、危险转人工（fail-safe）。**
 
 Flash 模型预判每次沙箱越界：常规操作自动放行，硬风险操作（删除 / 凭据 / 远程 / 系统 / 批量）永远转人工确认；学习沉淀只针对你确认过的操作，并提供界面化人工审查入口。
+
+> 本项目是 [moon09300731/dsh-approval-gate](https://github.com/moon09300731/dsh-approval-gate) 的增强分支（fork），从上游 v0.5.2 继续维护。包名、loader 行 id 与展示名改为 `dsh-approval-gate-plus` /「自动审批门控 Plus」，以便与上游并存识别；配置目录仍为 `$DSH_HOME/auto-approve/`，可直接沿用上游的规则与学习记录。
+>
+> ⚠️ 本分支与上游注册相同的宿主 API 前缀（`/api/auto-approve/*`）和审批瀑布钩子，**不要在同一个 profile 里同时安装两者**。
 
 ## ✨ 特性
 
@@ -18,6 +22,19 @@ Flash 模型预判每次沙箱越界：常规操作自动放行，硬风险操�
 - 🗂️ **会话级快照管理**（v0.5.0+）：快照按事件归属会话，审批视图按当前会话统计；清理支持「仅清本会话」与「清空全部」两档，避免误删其他会话未查看的 diff 记录
 - 🎛️ **判定模型可配置**（v0.6.0+）：`judgeProvider` / `judgeModel` 热更新配置（设置页直接修改），两项都填写时风险预判与同类验证固定走该模型，留空跟随会话默认模型
 - 🌐 **界面双语**（v0.6.0+）：界面文案跟随 DSH 语言设置即时切换（内置简体中文 / English），插件管理页的展示名称与描述同步本地化
+
+## 🔀 与上游（v0.5.2）的主要差异
+
+| 方向 | 上游 | 本分支（`-plus`） |
+|------|------|------------------|
+| 判定模型 | 固定跟随会话默认模型 | `judgeProvider` + `judgeModel` 可配置（设置页 + 热更新），失败回退会话模型 → 内置 Flash |
+| 界面语言 | 仅中文硬编码 | 全量文案走 DSH client locale（zh/en 即时切换），`locale/*.json` 提供插件展示名/描述本地化 |
+| DSH 0.2.x 适配 | profile 路径写死 `profiles/web`；`permissionPresets.current(session.events)` 在 0.2.x 恒为 `undefined`，门控静默失效 | profile 路径读 `DSH_PROFILE_DIR` / `DSH_PROFILE`；改用 `permissionPresets.current(session)`；内置兜底模型对齐 `deepseek-flash` |
+| Flash 调用健壮性 | 固定发送 `reasoningEffort: 'off'`，中转/自定义 provider 不支持时直接失败 | 被拒「不支持 reasoning effort」时去掉该参数重试一次（其余错误仍 fail-safe 抛错） |
+| 错误反馈 | 仅中文 `error` 字符串 | host 返回稳定 `code`/`params`，客户端按当前语言本地化 |
+| 插件标识 | `dsh-approval-gate` / 「自动审批门控」 | `dsh-approval-gate-plus` /「自动审批门控 Plus」 |
+
+> 0.6.1 起为 DSH 插件规范整理：`package.json` 补充 `dsh.manifestVersion`、`engines.dsh`/`engines.node`、`files`/`exports`、仓库与贡献者信息；`cordis.patch.yml` 的 `name` 严格等于包名（客户端 bundle 走 `/plugins/<name>/client.js`）。
 
 ## 📸 界面速览
 
@@ -42,16 +59,20 @@ Flash 模型预判每次沙箱越界：常规操作自动放行，硬风险操�
 ## 🚀 快速开始
 
 ```sh
-dsh plugin --profile web add dsh-approval-gate
+# 从本仓库安装（尚未发布到 npm）
+dsh plugin --profile web add "github:sny1005/dsh-approval-gate#main"
 ```
 
-1. **配置权限预设**：在 `~/.dsh/profiles/web/cordis.patch.yml` 添加 `auto-approve` 预设（[详见指南](docs/GUIDE.md#%E5%AE%89%E8%A3%85%E5%90%8E%E5%BF%85%E9%A1%BB%E6%89%8B%E5%8A%A8%E9%85%8D%E7%BD%AE%E6%9D%83%E9%99%90%E9%A2%84%E8%AE%BE%E5%85%B3%E9%94%AE%E6%AD%A5%E9%AA%A4)）
-2. **重启** `dsh web`
+1. **配置权限预设**：在 profile 的 `cordis.patch.yml` 添加 `auto-approve` 预设（[详见指南](docs/GUIDE.md#%E5%AE%89%E8%A3%85%E5%90%8E%E5%BF%85%E9%A1%BB%E6%89%8B%E5%8A%A8%E9%85%8D%E7%BD%AE%E6%9D%83%E9%99%90%E9%A2%84%E8%AE%BE%E5%85%B3%E9%94%AE%E6%AD%A5%E9%AA%A4)）
+2. **重启** `dsh web`（或重启桌面端）
 3. **选择预设**：会话权限下拉选中「自动审批（Flash）」
+
+数据文件沿用上游目录 `$DSH_HOME/auto-approve/`（默认 `~/.dsh/auto-approve/`），因此从上游切换过来无需迁移配置；卸载上游后再安装本分支即可。
 
 ## 📖 文档
 
 - [完整指南（管道 / 配置 / 安全设计 / 审查 UI）](docs/GUIDE.md) · [English Guide](docs/GUIDE.en.md)
+- [变更记录](CHANGELOG.md) · [上游项目](https://github.com/moon09300731/dsh-approval-gate)
 
 ## 📄 License
 

@@ -1,10 +1,14 @@
 [简体中文](README.md) | **English**
 
-# dsh-approval-gate
+# dsh-approval-gate-plus
 
-**Auto-approval gate for DeepSeek Harness — minimal human intervention: safe operations auto-approve, risky ones go to a human (fail-safe).**
+**Auto-approval gate for DeepSeek Harness (enhanced fork) — minimal human intervention: safe operations auto-approve, risky ones go to a human (fail-safe).**
 
 A Flash model pre-judges every sandbox escalation: routine operations auto-approve, hard-risk operations (deletion / credentials / remote / system / bulk) always require human confirmation; learned rules only ever cover operations you confirmed, with an in-app human review UI.
+
+> This project is an enhanced fork of [moon09300731/dsh-approval-gate](https://github.com/moon09300731/dsh-approval-gate), maintained from upstream v0.5.2. The package name, loader row id and display title are `dsh-approval-gate-plus` / "Approval Gate Plus" to keep it distinguishable from upstream. The data directory stays `$DSH_HOME/auto-approve/`, so upstream rules and learning records carry over unchanged.
+>
+> ⚠️ This fork registers the same host API prefix (`/api/auto-approve/*`) and approval waterfall hook as upstream — **do not install both into the same profile**.
 
 ## ✨ Features
 
@@ -18,6 +22,19 @@ A Flash model pre-judges every sandbox escalation: routine operations auto-appro
 - ✅ **Human review UI**: a green notice appears above the composer on auto-approval; the "Approval" view (right of Trajectory) shows the current session's full auto-approval timeline
 - 🎛️ **Configurable judge model** (v0.6.0+): `judgeProvider` / `judgeModel` hot-reloadable config (editable in the settings page); when both are set, risk judgment and similarity verification are pinned to that model, empty follows the session agent model
 - 🌐 **Bilingual UI** (v0.6.0+): UI copy follows the DSH language setting and switches live (built-in 简体中文 / English); the plugin's display title and description on the Plugins page are localized too
+
+## 🔀 Major differences from upstream (v0.5.2)
+
+| Area | Upstream | This fork (`-plus`) |
+|------|----------|---------------------|
+| Judge model | Always follows the session agent model | `judgeProvider` + `judgeModel` configurable (settings page + hot reload); falls back to the session model → built-in Flash |
+| UI language | Chinese only, hard-coded | All copy goes through the DSH client locale service (zh/en live switch); `locale/*.json` localizes the plugin's display title/description |
+| DSH 0.2.x support | Profile path hard-coded to `profiles/web`; `permissionPresets.current(session.events)` is always `undefined` on 0.2.x, so the gate silently never engages | Profile path reads `DSH_PROFILE_DIR` / `DSH_PROFILE`; uses `permissionPresets.current(session)`; built-in fallback model aligned to `deepseek-flash` |
+| Flash call resilience | Always sends `reasoningEffort: 'off'`; relay/custom providers that reject it fail outright | On "does not support reasoning effort", retries once without the parameter (all other errors still fail safe) |
+| Error feedback | Chinese `error` strings only | Host returns stable `code`/`params`; the client localizes them for the active language |
+| Plugin identity | `dsh-approval-gate` / "Auto-Approval Gate" | `dsh-approval-gate-plus` / "Approval Gate Plus" |
+
+> 0.6.1 is a DSH manifest-compliance release: `package.json` now declares `dsh.manifestVersion`, `engines.dsh` / `engines.node`, `files` / `exports`, repository and contributor info; the `cordis.patch.yml` row `name` strictly equals the package name (the browser half is served from `/plugins/<name>/client.js`).
 
 ## 📸 Interface Overview
 
@@ -42,16 +59,20 @@ The "Auto-approval" section in Settings provides full configuration: **preset in
 ## 🚀 Quick Start
 
 ```sh
-dsh plugin --profile web add dsh-approval-gate
+# Install from this repository (not published to npm)
+dsh plugin --profile web add "github:sny1005/dsh-approval-gate#main"
 ```
 
-1. **Add the permission preset**: append the `auto-approve` preset to `~/.dsh/profiles/web/cordis.patch.yml` ([see guide](docs/GUIDE.en.md#%E2%9A%A0%EF%B8%8F-manual-permission-preset-required-after-install))
-2. **Restart** `dsh web`
+1. **Add the permission preset**: append the `auto-approve` preset to the profile's `cordis.patch.yml` ([see guide](docs/GUIDE.en.md#%E2%9A%A0%EF%B8%8F-manual-permission-preset-required-after-install))
+2. **Restart** `dsh web` (or restart the desktop app)
 3. **Select the preset**: choose "Auto Approval (Flash)" in the session's permission dropdown
+
+Data files stay in the upstream directory `$DSH_HOME/auto-approve/` (default `~/.dsh/auto-approve/`), so switching from upstream needs no migration: remove upstream, then install this fork.
 
 ## 📖 Docs
 
 - [Full Guide (pipeline / configuration / security / review UI)](docs/GUIDE.en.md) · [中文指南](docs/GUIDE.md)
+- [Changelog](CHANGELOG.md) · [Upstream project](https://github.com/moon09300731/dsh-approval-gate)
 
 ## 📄 License
 

@@ -1,5 +1,6 @@
 /**
- * dsh-approval-gate — 自动审批（多级判定）持久插件 v3
+ * dsh-approval-gate-plus — 自动审批（多级判定）持久插件 v3
+ * （dsh-approval-gate 的增强分支；宿主入口，浏览器端见 client.js）
  *
  * 挂在审批瀑布（approval/request）最前：当会话权限预设为 auto-approve 时，
  * 按「DENY → 白名单 → denyRules → flash（SAFE/硬类别/中立计数）→ 裁决学习」管道判定越界请求。
@@ -34,7 +35,7 @@ import { readFileSync, writeFileSync, existsSync, appendFileSync, mkdirSync, rea
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 
-const NAME = 'dsh-approval-gate'
+const NAME = 'dsh-approval-gate-plus'
 const DSH_HOME = process.env.DSH_HOME || join(homedir(), '.dsh')
 const DATA_DIR = join(DSH_HOME, 'auto-approve')
 const ALLOWLIST_PATH = join(DATA_DIR, 'allowlist.json')
@@ -240,7 +241,7 @@ const AUTO_APPROVE_PRESET_YAML = `      auto-approve:
 `
 // 无 permission 条目时追加的完整预设块
 const FULL_PERMISSION_BLOCK = `
-# ── 自动审批模式（dsh-approval-gate）─────────────────────────
+# ── 自动审批模式（dsh-approval-gate-plus）─────────────────────────
 - id: permission
   name: '@deepseek-ai/dsh-permission-presets'
   config:
@@ -1274,7 +1275,7 @@ export default {
       const runOnce = async () => {
         const controller = new AbortController()
         const timer = ctx.timeout(timeoutMs).then(() => {
-          controller.abort(`dsh-approval-gate: ${label} 超时`)
+          controller.abort(`${NAME}: ${label} 超时`)
           return 'timeout'
         })
         try {
@@ -1285,7 +1286,7 @@ export default {
           if (result.judgeError) throw result.judgeError
           return result
         } finally {
-          controller.abort(`dsh-approval-gate: ${label} 结束`)
+          controller.abort(`${NAME}: ${label} 结束`)
         }
       }
 

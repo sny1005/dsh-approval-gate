@@ -1,8 +1,8 @@
-# dsh-approval-gate 完整指南
+# dsh-approval-gate-plus 完整指南
 
 > 首页：[简体中文](../README.md) · [English](../README.en.md) · 指南：[中文](GUIDE.md) · [English](GUIDE.en.md)
 
-DeepSeek Harness 自动审批门控插件 v0.6.0：**最小人工介入，只把必须人工确认的操作转人工（fail-safe）**。
+DeepSeek Harness 自动审批门控插件 v0.6.1（包名 `dsh-approval-gate-plus`，上游 [dsh-approval-gate](https://github.com/moon09300731/dsh-approval-gate) 的增强分支）：**最小人工介入，只把必须人工确认的操作转人工（fail-safe）**。
 
 当会话的权限预设为 `auto-approve`（自动审批（Flash））时，每次审批请求（沙箱越界）按管道判定：
 
@@ -30,18 +30,17 @@ DENY（不可逆危险词）→ 白名单（确定性规则）→ denyRules（�
 ## 安装
 
 ```sh
-# 方式一：npm 安装（推荐）
-dsh plugin --profile web add dsh-approval-gate
-
-# 方式二：GitHub 安装
-dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
+# 从本分支仓库安装（尚未发布到 npm；GitHub 安装不会执行构建脚本，本包为纯 .mjs/.js，无需构建）
+dsh plugin --profile web add "github:sny1005/dsh-approval-gate#main"
 ```
+
+> 本分支与上游注册相同的宿主 API 前缀与审批瀑布钩子，**不要在同一 profile 中同时安装两者**。数据目录沿用 `$DSH_HOME/auto-approve/`，从上游切换无需迁移配置。
 
 ## ⚠️ 安装后必须手动配置权限预设（关键步骤）
 
 插件无法向权限预设表添加选项（预设表在配置构造时冻结），需要手动在 profile 的 `cordis.patch.yml` 中补一条 preset：
 
-编辑 `~/.dsh/profiles/web/cordis.patch.yml`，追加（或合并进已有的 `permission` 行——**loader 的 patch 会整体替换目标行的 config，若已有该行必须重述全部预设**）：
+编辑 `~/.dsh/profiles/web/cordis.patch.yml`（桌面端为 `~/.dsh/profiles/desktop/cordis.patch.yml`；插件按 `DSH_PROFILE_DIR` / `DSH_PROFILE` 自动识别当前 profile），追加（或合并进已有的 `permission` 行——**loader 的 patch 会整体替换目标行的 config，若已有该行必须重述全部预设**）：
 
 ```yaml
 - id: permission
@@ -64,7 +63,7 @@ dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
         description: 多级判定：工作区写入自动放行，危险操作转人工审批。
 ```
 
-重启 `dsh web` 后，权限下拉菜单会出现「自动审批（Flash）」选项。
+重启 `dsh web`（桌面端重启应用）后，权限下拉菜单会出现「自动审批（Flash）」选项。
 
 ## 配置（可选）
 

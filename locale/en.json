@@ -1,6 +1,6 @@
 {
   "meta": {
-    "title": "Auto-Approval Gate",
-    "description": "Auto-approval gate for DeepSeek Harness: a Flash model pre-judges every sandbox escalation — recoverable operations auto-approve, hard-risk ones go to a human (fail-safe), with an in-app human review UI."
+    "title": "Approval Gate Plus",
+    "description": "Auto-approval gate for DeepSeek Harness (enhanced fork of dsh-approval-gate): a Flash model pre-judges every sandbox escalation — recoverable operations auto-approve, hard-risk ones go to a human (fail-safe), with a configurable judge route, a bilingual UI and an in-app review UI."
   }
 }

@@ -1,8 +1,8 @@
-# dsh-approval-gate — Full Guide
+# dsh-approval-gate-plus — Full Guide
 
 > Home: [English](../README.en.md) · [简体中文](../README.md) · Guide: [English](GUIDE.en.md) · [中文](GUIDE.md)
 
-DeepSeek Harness auto-approval gate plugin v0.6.0: **minimal human intervention — only operations that must be confirmed go to a human (fail-safe)**.
+DeepSeek Harness auto-approval gate plugin v0.6.1 (package `dsh-approval-gate-plus`, an enhanced fork of upstream [dsh-approval-gate](https://github.com/moon09300731/dsh-approval-gate)): **minimal human intervention — only operations that must be confirmed go to a human (fail-safe)**.
 
 When a session's permission preset is `auto-approve` (Auto Approval (Flash)), every approval request (sandbox escalation) is judged through this pipeline:
 
@@ -30,18 +30,18 @@ DENY (irreversible keywords) → allowlist (deterministic rules) → denyRules (
 ## Install
 
 ```sh
-# Option 1: npm (recommended)
-dsh plugin --profile web add dsh-approval-gate
-
-# Option 2: GitHub
-dsh plugin --profile web add "github:moon09300731/dsh-approval-gate#main"
+# Install from this fork's repository (not published to npm; a GitHub install runs no build
+# script, and this package ships plain .mjs/.js — nothing to build)
+dsh plugin --profile web add "github:sny1005/dsh-approval-gate#main"
 ```
+
+> This fork registers the same host API prefix and approval waterfall hook as upstream — **do not install both into the same profile**. The data directory stays `$DSH_HOME/auto-approve/`, so switching from upstream needs no config migration.
 
 ## ⚠️ Manual permission preset (required after install)
 
 The plugin cannot extend the frozen permission-preset table; add the preset manually to the profile's `cordis.patch.yml`:
 
-Edit `~/.dsh/profiles/web/cordis.patch.yml` and append (or merge into the existing `permission` row — **the loader patch replaces the whole row's config, so restate every preset**):
+Edit `~/.dsh/profiles/web/cordis.patch.yml` (on Desktop: `~/.dsh/profiles/desktop/cordis.patch.yml`; the plugin resolves the active profile via `DSH_PROFILE_DIR` / `DSH_PROFILE`) and append (or merge into the existing `permission` row — **the loader patch replaces the whole row's config, so restate every preset**):
 
 ```yaml
 - id: permission
@@ -64,7 +64,7 @@ Edit `~/.dsh/profiles/web/cordis.patch.yml` and append (or merge into the existi
         description: Multi-stage judgment: workspace writes auto-approve, risky operations go to human.
 ```
 
-Restart `dsh web`; the permission dropdown then offers "Auto Approval (Flash)".
+Restart `dsh web` (or the desktop app); the permission dropdown then offers "Auto Approval (Flash)".
 
 ## Configuration (optional)
 
