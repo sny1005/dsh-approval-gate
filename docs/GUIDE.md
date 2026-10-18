@@ -103,7 +103,7 @@ dsh plugin --profile web add "github:sny1005/dsh-approval-gate#main"
 - `hardCategories`：flash 判 RISKY 且命中这些类别 → 直接转人工（不计数、不学习）
 - `riskyThreshold`：中立类别的人工确认阈值（默认 3）——同一「工具+模式+类别」被人工确认 N-1 次后，第 N 次起自动放行并沉淀规则
 - `judgeTimeoutMs`：单次 flash 判断超时（默认 20000ms，超时自动重试 1 次，仍超时转人工）
-- `judgeProvider` / `judgeModel`（v0.6.0+，默认空）：判定模型路由。**两项都配置**时，所有判定调用（风险预判与同类验证）固定走该 provider/model——如 `"deepseek-official"` + `"deepseek-flash"` 固定用便宜的 Flash 判定（类似 dsh-smart-title 的可配置模型）。留空保持默认行为：跟随会话当前默认模型，取不到时回退内置 `deepseek-official` / `deepseek-flash`
+- `judgeProvider` / `judgeModel`（v0.6.0+，默认空）：判定模型路由。**两项都配置**时，所有判定调用（风险预判与同类验证）固定走该 provider/model——如 `"deepseek-official"` + `"deepseek-flash"` 固定用便宜的 Flash 判定（类似 dsh-smart-title 的可配置模型）。留空保持默认行为：跟随会话当前默认模型，取不到时回退内置 `deepseek-official` / `deepseek-flash`。设置页里无需手输：v0.6.2+ 用**下拉**选择，数据来自实时目录（`GET /api/auto-approve/models`，聚合 `llm.listProviders()` 与 `llm.listModels(provider)`）
 
 ## 使用
 
@@ -118,7 +118,8 @@ DSH 设置面板新增「自动审批」分区（settings.section，样式与 DS
 - **① DENY 层 · 黑名单**（denyKeywords）：查看/添加/删除危险词（删除预置词有确认提示）
 - **② 白名单层 · 白名单**（allowRules）：查看（预置/学习沉淀/用户 来源标签）/添加（tool/mode/category/contains 表单）/删除 —— 例：`tool=edit, mode=danger-full-access` → 工作区外 edit 自动放行
 - **③ denyRules 层 · 永久人工**：拒绝升级的规则，查看/移除
-- **④ Flash 判定 · 阈值、超时与判定模型**：`riskyThreshold`（学习满 N 次后第 N+1 次自动放行）/ `judgeTimeoutMs` 直接修改；**判定模型**两行（`judgeProvider` / `judgeModel`）两项都填写时固定判定路由（留空跟随会话默认模型），卡片同时展示当前生效路由（v0.6.0+）
+- **④ Flash 判定 · 阈值与超时**：`riskyThreshold`（学习满 N 次后第 N+1 次自动放行）/ `judgeTimeoutMs` 直接修改
+- **判定模型**（v0.6.0+；v0.6.2+ 下拉）：独立卡片，**Provider 下拉 + 联动的模型下拉**，选项来自已配置的模型目录（DSH 当前注册了路由的 provider 及其公布的模型）。两项都选好后点保存即固定 `judgeProvider` / `judgeModel`；两项留空（或选「跟随会话默认模型」）则跟随会话模型。卡片同时展示当前生效路由；配置里已有但目录中没有的值会保留为可选项，避免自定义路由被静默丢弃
 - **⑤ 学习沉淀 · 正在学习**：展示确认计数（n/N）与样本；**「终止」按钮可介入删除**（删除计数与样本，重新学习）
 
 所有修改通过 `POST /api/auto-approve/rules` 写入 `allowlist.json`，**热更新即时生效**（无需重启）；`POST /api/auto-approve/setup` 负责一键初始化。

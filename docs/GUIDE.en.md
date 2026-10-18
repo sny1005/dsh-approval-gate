@@ -104,7 +104,7 @@ Data files live under `$DSH_HOME/auto-approve/` (default `~/.dsh/auto-approve/`)
 - `hardCategories`: flash `RISKY` in these categories → directly human (no counting, no learning)
 - `riskyThreshold`: neutral confirmation threshold (default 3) — after N-1 human confirmations of the same tool+mode+category, the Nth occurrence auto-approves and persists a rule
 - `judgeTimeoutMs`: single flash judgment timeout (default 20000ms; auto-retries once, then goes to human)
-- `judgeProvider` / `judgeModel` (v0.6.0+, default empty): pin the judge model route. When **both** are set, every judge call (risk judgment and similarity verification) uses that provider/model — e.g. `"deepseek-official"` + `"deepseek-flash"` for a cheap fixed judge (like dsh-smart-title). Empty fields keep the default behavior: the judge follows the session's current agent model, falling back to the built-in `deepseek-official` / `deepseek-flash`
+- `judgeProvider` / `judgeModel` (v0.6.0+, default empty): pin the judge model route. When **both** are set, every judge call (risk judgment and similarity verification) uses that provider/model — e.g. `"deepseek-official"` + `"deepseek-flash"` for a cheap fixed judge (like dsh-smart-title). Empty fields keep the default behavior: the judge follows the session's current agent model, falling back to the built-in `deepseek-official` / `deepseek-flash`. In the settings page you normally don't type these: v0.6.2+ fills them from **dropdowns** fed by the live catalog (`GET /api/auto-approve/models`, which aggregates `llm.listProviders()` + `llm.listModels(provider)`)
 
 ## Usage
 
@@ -119,7 +119,8 @@ A new "Auto Approval" section in the DSH settings panel (`settings.section`, sty
 - **① DENY · deny list** (`denyKeywords`): view/add/remove dangerous keywords (removing a predefined keyword asks for confirmation)
 - **② Allow list** (`allowRules`): view (tagged predefined / learned / user) / add (tool/mode/category/contains form) / remove — e.g. `tool=edit, mode=danger-full-access` auto-approves out-of-workspace edits
 - **③ denyRules · always-human**: rejection-upgraded rules, view/remove
-- **④ Flash · thresholds, timeout & judge model**: edit `riskyThreshold` (auto-approve starts at N+1th occurrence after N confirmations) / `judgeTimeoutMs` directly; the two **judge model** rows (`judgeProvider` / `judgeModel`) pin the judge route when both are set (empty = follow the session agent model), and the card shows the currently effective route (v0.6.0+)
+- **④ Flash · threshold & timeout**: edit `riskyThreshold` (auto-approve starts at N+1th occurrence after N confirmations) / `judgeTimeoutMs` directly
+- **Judge model** (v0.6.0+; dropdowns in v0.6.2+): a separate card with a **provider dropdown** and a dependent **model dropdown**, both populated from the configured model catalog (providers DSH actually has routes for, and the models each advertises). Pick both and Save to pin `judgeProvider` / `judgeModel`; leave both empty (or pick "Follow the session agent model") to follow the session model. The card also shows the currently effective route, and keeps a configured-but-unlisted value selectable so a custom route is never silently dropped
 - **⑤ Learning · in progress**: confirmation counts (n/N) + samples with a **"Stop" button** to intervene (removes count and samples, restarts learning)
 
 All changes go through `POST /api/auto-approve/rules` into `allowlist.json` — **hot-reloaded immediately** (no restart); `POST /api/auto-approve/setup` handles one-click setup.

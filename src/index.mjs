@@ -516,10 +516,26 @@ function ensureAutoApprovePreset() {
   }
 }
 
-/** 规则修改：op=add|remove|set，kind=allowRules|denyRules|denyKeywords|hardCategories|riskyThreshold|judgeTimeoutMs|judgeProvider|judgeModel */
+/** 规则修改：op=add|remove|set，kind=allowRules|denyRules|denyKeywords|hardCategories|riskyThreshold|judgeTimeoutMs|judgeRoute|judgeProvider|judgeModel */
 // 失败返回除人类可读 error 外附稳定 code（+params）：client 按码本地化展示，未知码回退 error 原文
 function applyRuleOp(op, kind, value) {
   reloadConfig()
+
+  // 判定路由（设置页下拉一次保存）：provider + model 原子写入，两项必须同时给或同时为空
+  if (kind === 'judgeRoute') {
+    if (op !== 'set') return { ok: false, code: 'setOnly', params: { kind }, error: 'judgeRoute 使用 set 操作' }
+    const route = value && typeof value === 'object' ? value : {}
+    const provider = String(route.provider == null ? '' : route.provider).trim()
+    const model = String(route.model == null ? '' : route.model).trim()
+    if ((provider && !model) || (!provider && model)) {
+      return { ok: false, code: 'routeIncomplete', error: 'provider 与 model 必须同时选择或同时留空' }
+    }
+    config.judgeProvider = provider
+    config.judgeModel = model
+    saveJson(ALLOWLIST_PATH, config)
+    audit(`CONFIG  判定路由 → ${provider && model ? `${provider}/${model}` : '(空，跟随会话默认模型)'}`)
+    return { ok: true, set: true, value: { provider, model } }
+  }
 
   // 判定模型路由（字符串类配置）：set 写入（trim），置空 = 跟随会话默认模型
   if (kind === 'judgeProvider' || kind === 'judgeModel') {
@@ -821,6 +837,54 @@ export default {
     const agentDefaultModel = ctx.get('agentDefaultModel')
     const PRESET_NAME = 'auto-approve'
 
+    // ---- 判定模型目录（设置页下拉数据源：已注册的 provider + 各自公布的模型） ----
+    // 目录由各 provider 适配器提供（云目录/本地模型扫描），可能慢或失败：
+    // 结果做 60s 缓存，provider 并行查询且各自带超时，单个失败只留空列表，不影响其余 provider。
+    let modelCatalogCache = { at: 0, data: null }
+    const MODEL_CATALOG_TTL_MS = 60_000
+    const MODEL_LIST_TIMEOUT_MS = 8_000
+    const listModelsWithTimeout = (provider) => {
+      if (typeof llm.listModels !== 'function') return Promise.resolve([])
+      let timer
+      const timeout = new Promise((_, reject) => {
+        timer = setTimeout(() => reject(new Error(`listModels(${provider}) 超时（${MODEL_LIST_TIMEOUT_MS}ms）`)), MODEL_LIST_TIMEOUT_MS)
+        if (typeof timer.unref === 'function') timer.unref()
+      })
+      return Promise.race([llm.listModels(provider), timeout]).finally(() => clearTimeout(timer))
+    }
+    const loadModelCatalog = async () => {
+      const now = Date.now()
+      if (modelCatalogCache.data && now - modelCatalogCache.at < MODEL_CATALOG_TTL_MS) return modelCatalogCache.data
+      let routes = []
+      try {
+        routes = typeof llm.listProviders === 'function' ? llm.listProviders() : []
+      } catch (error) {
+        console.error(`[${NAME}] 读取模型 provider 列表失败`, error)
+      }
+      const providers = await Promise.all((Array.isArray(routes) ? routes : []).map(async (route) => {
+        const id = String((route && route.id) || '').trim()
+        if (!id) return null
+        const entry = { id, name: String((route && route.name) || id), models: [] }
+        try {
+          const models = await listModelsWithTimeout(id)
+          const seen = new Set()
+          for (const model of Array.isArray(models) ? models : []) {
+            const modelId = String((model && model.id) || '').trim()
+            if (!modelId || seen.has(modelId)) continue
+            seen.add(modelId)
+            entry.models.push({ id: modelId, name: String((model && model.name) || modelId) })
+          }
+        } catch (error) {
+          // 适配器不公布模型或端点暂不可用：保留空列表，前端提示可留空跟随会话模型
+          console.error(`[${NAME}] 读取 provider ${id} 模型目录失败`, error)
+        }
+        return entry
+      }))
+      const data = { providers: providers.filter(Boolean), fetchedAt: new Date().toISOString() }
+      modelCatalogCache = { at: now, data }
+      return data
+    }
+
     // ---- 自动放行事件 API（client 审查界面轮询；按会话过滤 + since 增量） ----
     let offEventsRoute = null
     try {
@@ -861,6 +925,7 @@ export default {
     // ---- 规则管理 API（设置页：查看/修改放行与阻塞规则 + 一键初始化） ----
     let offRulesRoute = null
     let offSetupRoute = null
+    let offModelsRoute = null
     try {
       if (ctx.webServer && typeof ctx.webServer.register === 'function') {
         offRulesRoute = ctx.webServer.register({
@@ -910,7 +975,23 @@ export default {
             }
           },
         })
-        console.log(`[${NAME}] 规则/初始化 API 已注册：/api/auto-approve/rules, /setup`)
+        offModelsRoute = ctx.webServer.register({
+          kind: 'exact',
+          path: '/api/auto-approve/models',
+          handler: async (req, res) => {
+            const send = (code, obj) => {
+              res.writeHead(code, { 'content-type': 'application/json; charset=utf-8', 'cache-control': 'no-cache' })
+              res.end(JSON.stringify(obj))
+            }
+            try {
+              if (req.method === 'GET' || req.method === 'HEAD') return send(200, await loadModelCatalog())
+              return send(405, { ok: false, code: 'methodNotAllowed', error: 'method not allowed' })
+            } catch (e) {
+              send(400, { ok: false, error: String((e && e.message) || e) })
+            }
+          },
+        })
+        console.log(`[${NAME}] 规则/初始化/模型目录 API 已注册：/api/auto-approve/rules, /setup, /models`)
       } else {
         console.warn(`[${NAME}] webServer 不可用，规则/初始化 API 未注册`)
       }
@@ -1115,6 +1196,7 @@ export default {
       if (offEventsRoute) { try { offEventsRoute() } catch (e) {} }
       if (offRulesRoute) { try { offRulesRoute() } catch (e) {} }
       if (offSetupRoute) { try { offSetupRoute() } catch (e) {} }
+      if (offModelsRoute) { try { offModelsRoute() } catch (e) {} }
       if (offDiffRoute) { try { offDiffRoute() } catch (e) {} }
       if (offRevertRoute) { try { offRevertRoute() } catch (e) {} }
       if (offSnapStatsRoute) { try { offSnapStatsRoute() } catch (e) {} }

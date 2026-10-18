@@ -20,14 +20,14 @@ Flash 模型预判每次沙箱越界：常规操作自动放行，硬风险操�
 - ✅ **人工审查 UI**：自动放行时输入框上方出现绿色提示；「审批」视图（轨迹右侧）展示当前会话完整放行时间线
 - 📄 **文件改动对比与撤销**（v0.5.0+）：审批涉及的文件可点击查看 **unified diff**——变动行带上下 5 行上下文、多处修改按 hunk 分区并以「N unmodified lines」分隔条折叠、绿加红删灰上下文、双行号；一键「撤销此改动」投递指令让 AI 按快照恢复文件
 - 🗂️ **会话级快照管理**（v0.5.0+）：快照按事件归属会话，审批视图按当前会话统计；清理支持「仅清本会话」与「清空全部」两档，避免误删其他会话未查看的 diff 记录
-- 🎛️ **判定模型可配置**（v0.6.0+）：`judgeProvider` / `judgeModel` 热更新配置（设置页直接修改），两项都填写时风险预判与同类验证固定走该模型，留空跟随会话默认模型
+- 🎛️ **判定模型可配置**（v0.6.0+，v0.6.2 起下拉选择）：设置页独立的「判定模型」分区，从 DSH 已配置的 provider/模型目录（`llm.listProviders()` / `llm.listModels()`）**下拉选择** Provider 与 Model，保存为 `judgeProvider` / `judgeModel` 并热更新；两项留空跟随会话默认模型
 - 🌐 **界面双语**（v0.6.0+）：界面文案跟随 DSH 语言设置即时切换（内置简体中文 / English），插件管理页的展示名称与描述同步本地化
 
 ## 🔀 与上游（v0.5.2）的主要差异
 
 | 方向 | 上游 | 本分支（`-plus`） |
 |------|------|------------------|
-| 判定模型 | 固定跟随会话默认模型 | `judgeProvider` + `judgeModel` 可配置（设置页 + 热更新），失败回退会话模型 → 内置 Flash |
+| 判定模型 | 固定跟随会话默认模型 | 设置页独立卡片，Provider/模型 **下拉选择**（v0.6.2+，数据来自已配置模型目录），保存为 `judgeProvider` + `judgeModel`（热更新），失败回退会话模型 → 内置 Flash |
 | 界面语言 | 仅中文硬编码 | 全量文案走 DSH client locale（zh/en 即时切换），`locale/*.json` 提供插件展示名/描述本地化 |
 | DSH 0.2.x 适配 | profile 路径写死 `profiles/web`；`permissionPresets.current(session.events)` 在 0.2.x 恒为 `undefined`，门控静默失效 | profile 路径读 `DSH_PROFILE_DIR` / `DSH_PROFILE`；改用 `permissionPresets.current(session)`；内置兜底模型对齐 `deepseek-flash` |
 | Flash 调用健壮性 | 固定发送 `reasoningEffort: 'off'`，中转/自定义 provider 不支持时直接失败 | 被拒「不支持 reasoning effort」时去掉该参数重试一次（其余错误仍 fail-safe 抛错） |

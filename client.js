@@ -84,6 +84,8 @@ window.__ModuleLoader__.load({
 .ag-set-input:focus{border-color:var(--dsw-alias-state-business-primary);box-shadow:0 0 0 2px color-mix(in srgb, var(--dsw-alias-state-business-primary) 18%, transparent)}
 .ag-set-input::placeholder{color:var(--dsw-alias-label-caption)}
 .ag-set-input-num{width:96px}
+.ag-set-select{min-width:220px;max-width:360px;cursor:pointer;appearance:auto}
+.ag-set-select:disabled{opacity:.5;cursor:default}
 .ag-set-btn{box-sizing:border-box;height:32px;color:var(--dsw-alias-label-primary);cursor:pointer;font:inherit;border:1px solid var(--dsw-alias-border-l2);background:transparent;border-radius:16px;justify-content:center;align-items:center;gap:4px;padding:0 14px;font-size:13px;line-height:20px;display:inline-flex;white-space:nowrap}
 .ag-set-btn:hover:not(:disabled){background:var(--dsw-alias-interactive-bg-hover)}
 .ag-set-btn:disabled{opacity:.4;cursor:default}
@@ -263,10 +265,19 @@ window.__ModuleLoader__.load({
         'settings.timeoutLabel': 'Flash 判断超时(ms)：',
         'settings.modelProviderLabel': '判定模型 Provider：',
         'settings.modelModelLabel': '判定模型 Model：',
-        'settings.modelFollowHint': '留空跟随会话默认模型',
-        'settings.modelHint': '两项都填写后固定判定路由（风险预判与同类验证都走该模型，热更新即时生效）；留空跟随会话默认模型。',
+        'settings.modelTitle': '判定模型',
+        'settings.modelSub': '④ 风险预判与同类验证共用的模型路由：选择 Provider 与 Model 后固定路由；两项都留空则跟随会话默认模型。',
+        'settings.modelFollow': '跟随会话默认模型（不固定）',
+        'settings.modelChooseModel': '选择模型…',
+        'settings.modelUnknown': '当前配置（不在目录中）',
+        'settings.modelLoading': '正在读取模型目录…',
+        'settings.modelNoModels': '该 Provider 未公布模型；可留空跟随会话模型。',
+        'settings.modelCatalogFailed': '模型目录读取失败，仍保留当前配置。',
+        'settings.modelRouteIncomplete': '请同时选择 Provider 与 Model（或两项都留空）。',
+        'settings.modelHint': 'Provider 与 Model 同时选择后固定判定路由（风险预判与同类验证都走该模型，热更新即时生效）；两项都留空则跟随会话默认模型。',
         'settings.modelEffective': '当前生效路由：{route}。',
         'api.setOnly': '{kind} 使用 set 操作',
+        'api.routeIncomplete': 'Provider 与 Model 必须同时选择或同时留空',
         'api.invalidValue': '无效数值',
         'api.learningRemoveOnly': 'learning 仅支持 remove',
         'api.emptyKey': 'key 不能为空',
@@ -401,10 +412,19 @@ window.__ModuleLoader__.load({
         'settings.timeoutLabel': 'Flash judgment timeout (ms):',
         'settings.modelProviderLabel': 'Judge model provider:',
         'settings.modelModelLabel': 'Judge model model:',
-        'settings.modelFollowHint': 'empty = follow the session agent model',
-        'settings.modelHint': 'Set both fields to pin the judge route (risk judgment and similarity verification both use it; hot reload applies immediately); leave empty to follow the session agent model.',
+        'settings.modelTitle': 'Judge model',
+        'settings.modelSub': 'Model route shared by ④ risk judgment and similarity verification: pick a provider and model to pin it; leave both empty to follow the session agent model.',
+        'settings.modelFollow': 'Follow the session agent model (not pinned)',
+        'settings.modelChooseModel': 'Choose a model…',
+        'settings.modelUnknown': 'current value (not in catalog)',
+        'settings.modelLoading': 'Loading the model catalog…',
+        'settings.modelNoModels': 'This provider advertises no models; leave both empty to follow the session model.',
+        'settings.modelCatalogFailed': 'The model catalog could not be loaded; the current route is kept.',
+        'settings.modelRouteIncomplete': 'Choose both a provider and a model (or leave both empty).',
+        'settings.modelHint': 'Pick a provider and a model to pin the judge route (risk judgment and similarity verification both use it; hot reload applies immediately); leave both empty to follow the session agent model.',
         'settings.modelEffective': 'Effective route: {route}.',
         'api.setOnly': '{kind} only supports the set operation',
+        'api.routeIncomplete': 'Provider and model must be chosen together, or both left empty',
         'api.invalidValue': 'Invalid number',
         'api.learningRemoveOnly': 'learning only supports remove',
         'api.emptyKey': 'key must not be empty',
@@ -976,6 +996,9 @@ window.__ModuleLoader__.load({
       const [judgeProvider, setJudgeProvider] = React.useState('')
       const [judgeModel, setJudgeModel] = React.useState('')
       const [effectiveModel, setEffectiveModel] = React.useState(null)
+      // 可选模型目录：host 聚合各 provider 适配器公布的模型（/api/auto-approve/models）
+      const [catalog, setCatalog] = React.useState(null)
+      const [catalogError, setCatalogError] = React.useState(null)
 
       const load = function () {
         fetch('/api/auto-approve/rules', { headers: { 'cache-control': 'no-cache' } })
@@ -995,7 +1018,24 @@ window.__ModuleLoader__.load({
           })
           .catch(function (e) { setError(t('settings.loadFailed', { detail: String((e && e.message) || e) })) })
       }
-      React.useEffect(function () { load() }, [])
+      const loadCatalog = function () {
+        fetch('/api/auto-approve/models', { headers: { 'cache-control': 'no-cache' } })
+          .then(function (r) { return r.json() })
+          .then(function (data) {
+            if (data && Array.isArray(data.providers)) {
+              setCatalog(data)
+              setCatalogError(null)
+            } else {
+              setCatalog({ providers: [] })
+              setCatalogError(t('settings.modelCatalogFailed'))
+            }
+          })
+          .catch(function () {
+            setCatalog({ providers: [] })
+            setCatalogError(t('settings.modelCatalogFailed'))
+          })
+      }
+      React.useEffect(function () { load(); loadCatalog() }, [])
 
       const showFeedback = function (msg, ok) {
         setFeedback({ msg: String(msg), ok: ok !== false })
@@ -1017,8 +1057,29 @@ window.__ModuleLoader__.load({
         }).finally(function () { setBusy(false) })
       }
 
-      const setupNow = function () {
+      // 判定路由保存：provider + model 一次原子写入（host 校验两项必须同时给或同时为空）
+      const saveRoute = function () {
+        const provider = String(judgeProvider || '').trim()
+        const model = String(judgeModel || '').trim()
+        if ((provider && !model) || (!provider && model)) {
+          showFeedback(t('settings.modelRouteIncomplete'), false)
+          return
+        }
         setBusy(true)
+        fetch('/api/auto-approve/rules', {
+          method: 'POST',
+          headers: { 'content-type': 'application/json' },
+          body: JSON.stringify({ op: 'set', kind: 'judgeRoute', value: { provider: provider, model: model } }),
+        }).then(function (r) { return r.json() }).then(function (res) {
+          if (res && res.ok) { load(); showFeedback(t('settings.applied')); return res }
+          showFeedback(apiErrorText(t, res, t('settings.opFailed')), false)
+          return res
+        }).catch(function (e) {
+          showFeedback(t('settings.requestFailed', { detail: String((e && e.message) || e) }), false)
+        }).finally(function () { setBusy(false) })
+      }
+
+      const setupNow = function () {        setBusy(true)
         fetch('/api/auto-approve/setup', { method: 'POST' })
           .then(function (r) { return r.json() })
           .then(function (res) {
@@ -1049,6 +1110,14 @@ window.__ModuleLoader__.load({
       const learnHistory = snapshot.learning && snapshot.learning.history ? snapshot.learning.history : {}
       const statKeys = Object.keys(learnStats)
       const histKeys = Object.keys(learnHistory)
+      // 下拉选项：已注册 provider 及其公布模型；配置里已有但目录中没有的值保留为“当前配置”
+      const providers = (catalog && Array.isArray(catalog.providers)) ? catalog.providers : []
+      const currentProvider = providers.find(function (p) { return p.id === judgeProvider }) || null
+      const providerModels = currentProvider ? currentProvider.models : []
+      const selectableModels = (judgeModel && !providerModels.some(function (m) { return m.id === judgeModel }))
+        ? providerModels.concat([{ id: judgeModel, name: judgeModel }])
+        : providerModels
+      const routeIncomplete = (judgeProvider && !judgeModel) || (!judgeProvider && judgeModel)
 
       return React.createElement('div', { className: 'ag-set' },
         React.createElement('h3', { className: 'ag-set-title' }, t('settings.title')),
@@ -1262,35 +1331,61 @@ window.__ModuleLoader__.load({
               onClick: function () { api({ op: 'set', kind: 'judgeTimeoutMs', value: Number(timeoutMs) }) },
             }, t('common.save')),
           ),
-          // ---- 判定模型路由（v0.6.0+，类似 dsh-smart-title 的可配置模型）：留空跟随会话默认模型 ----
+        ),
+
+        // ---- 判定模型（v0.6.2：独立分区，Provider/Model 下拉；两项留空跟随会话默认模型） ----
+        React.createElement('div', { className: 'ag-set-card' },
+          React.createElement('div', { className: 'ag-set-card-head' },
+            React.createElement('div', { className: 'ag-set-card-title' }, t('settings.modelTitle')),
+            React.createElement('p', { className: 'ag-set-card-sub' }, t('settings.modelSub'))),
           React.createElement('div', { className: 'ag-set-row' },
             React.createElement('span', { className: 'ag-set-item-meta' }, t('settings.modelProviderLabel')),
-            React.createElement('input', {
-              className: 'ag-set-input', style: { width: 180 }, value: judgeProvider,
-              placeholder: t('settings.modelFollowHint'), spellCheck: false,
-              onChange: function (e) { setJudgeProvider(e.target.value) },
-            }),
-            React.createElement('button', {
-              type: 'button', className: 'ag-set-btn', disabled: busy,
-              onClick: function () { api({ op: 'set', kind: 'judgeProvider', value: judgeProvider.trim() }) },
-            }, t('common.save')),
+            React.createElement('select', {
+              className: 'ag-set-input ag-set-select',
+              value: judgeProvider,
+              disabled: busy,
+              onChange: function (e) { setJudgeProvider(e.target.value); setJudgeModel('') },
+            },
+              React.createElement('option', { value: '' }, t('settings.modelFollow')),
+              providers.map(function (p) {
+                const label = p.name && p.name !== p.id ? p.name + ' — ' + p.id : p.id
+                return React.createElement('option', { key: p.id, value: p.id }, label)
+              }),
+              judgeProvider && !currentProvider
+                ? React.createElement('option', { value: judgeProvider },
+                    judgeProvider + ' · ' + t('settings.modelUnknown'))
+                : null,
+            ),
           ),
           React.createElement('div', { className: 'ag-set-row' },
             React.createElement('span', { className: 'ag-set-item-meta' }, t('settings.modelModelLabel')),
-            React.createElement('input', {
-              className: 'ag-set-input', style: { width: 180 }, value: judgeModel,
-              placeholder: t('settings.modelFollowHint'), spellCheck: false,
+            React.createElement('select', {
+              className: 'ag-set-input ag-set-select',
+              value: judgeModel,
+              disabled: busy || !judgeProvider,
               onChange: function (e) { setJudgeModel(e.target.value) },
-            }),
+            },
+              React.createElement('option', { value: '' },
+                judgeProvider ? t('settings.modelChooseModel') : t('settings.modelFollow')),
+              selectableModels.map(function (m) {
+                const label = m.name && m.name !== m.id ? m.name + ' — ' + m.id : m.id
+                return React.createElement('option', { key: m.id, value: m.id }, label)
+              }),
+            ),
             React.createElement('button', {
-              type: 'button', className: 'ag-set-btn', disabled: busy,
-              onClick: function () { api({ op: 'set', kind: 'judgeModel', value: judgeModel.trim() }) },
+              type: 'button', className: 'ag-set-btn', disabled: busy || routeIncomplete,
+              onClick: saveRoute,
             }, t('common.save')),
           ),
           React.createElement('p', { className: 'ag-set-card-sub' },
             t('settings.modelHint') + (effectiveModel && effectiveModel.provider && effectiveModel.model
               ? t('settings.modelEffective', { route: effectiveModel.provider + '/' + effectiveModel.model })
               : '')),
+          !catalog ? React.createElement('p', { className: 'ag-set-card-sub' }, t('settings.modelLoading')) : null,
+          catalogError ? React.createElement('p', { className: 'ag-set-card-sub' }, catalogError) : null,
+          catalog && currentProvider && currentProvider.models.length === 0
+            ? React.createElement('p', { className: 'ag-set-card-sub' }, t('settings.modelNoModels'))
+            : null,
         ),
 
         // ---- 反馈 ----

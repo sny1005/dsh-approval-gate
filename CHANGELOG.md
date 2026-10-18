@@ -6,6 +6,35 @@ All notable changes to this fork are documented here. The format follows
 
 Upstream base: [moon09300731/dsh-approval-gate](https://github.com/moon09300731/dsh-approval-gate) v0.5.2 (commit `8419bc3`).
 
+## [0.6.2] - 2026-10-18
+
+Judge model selection is now a first-class settings surface instead of two free-text
+inputs.
+
+### Added
+
+- **Model catalog API**: `GET /api/auto-approve/models` aggregates `llm.listProviders()`
+  with each provider's `llm.listModels(id)` and returns `{ providers: [{ id, name, models: [{ id, name }] }] }`.
+  Results are cached for 60 s; a provider whose adapter advertises no models (or is
+  temporarily unreachable) contributes an empty list instead of failing the request.
+- **Judge model card** in the settings page: a provider dropdown and a dependent model
+  dropdown, populated from the live catalog, plus a single Save that writes the route
+  atomically. Options show `name — id` when they differ; the session-model option
+  ("Follow the session agent model") is the default. A configured value that is no
+  longer advertised stays selectable, so custom/removed routes are never dropped
+  silently. Failures to load the catalog degrade to the current values.
+- **`judgeRoute` rule op**: `POST /api/auto-approve/rules` with
+  `{ op: "set", kind: "judgeRoute", value: { provider, model } }` writes
+  `judgeProvider` + `judgeModel` in one atomic update. Partial routes (one side empty)
+  are rejected with the stable code `routeIncomplete`; `judgeProvider` / `judgeModel`
+  single-key ops remain supported for scripts.
+
+### Changed
+
+- The model inputs moved out of the ④ card into their own card (no pipeline renumbering).
+- Settings copy for the judge route now describes dropdown selection; zh/en dictionaries
+  and GUIDE/README updated.
+
 ## [0.6.1] - 2026-10-18
 
 Fork identity + DSH plugin-manifest compliance. No behavior change in the

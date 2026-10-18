@@ -20,14 +20,14 @@ A Flash model pre-judges every sandbox escalation: routine operations auto-appro
 - 🗂️ **Session-scoped snapshots** (v0.5.0+): snapshots belong to the event's session; the approval view shows only the current session's snapshot stats; clearing supports "this session only" vs "clear all" to avoid wiping other sessions' unviewed diffs
 - 🔧 **Hot-reloadable config**: `allowlist.json` edits take effect immediately, no restart
 - ✅ **Human review UI**: a green notice appears above the composer on auto-approval; the "Approval" view (right of Trajectory) shows the current session's full auto-approval timeline
-- 🎛️ **Configurable judge model** (v0.6.0+): `judgeProvider` / `judgeModel` hot-reloadable config (editable in the settings page); when both are set, risk judgment and similarity verification are pinned to that model, empty follows the session agent model
+- 🎛️ **Configurable judge model** (v0.6.0+, dropdowns in v0.6.2+): a dedicated "Judge model" settings section with **provider and model dropdowns** populated from the providers/models DSH actually has configured (`llm.listProviders()` / `llm.listModels()`); the pin is stored as `judgeProvider` / `judgeModel` and hot-reloads, empty follows the session agent model
 - 🌐 **Bilingual UI** (v0.6.0+): UI copy follows the DSH language setting and switches live (built-in 简体中文 / English); the plugin's display title and description on the Plugins page are localized too
 
 ## 🔀 Major differences from upstream (v0.5.2)
 
 | Area | Upstream | This fork (`-plus`) |
 |------|----------|---------------------|
-| Judge model | Always follows the session agent model | `judgeProvider` + `judgeModel` configurable (settings page + hot reload); falls back to the session model → built-in Flash |
+| Judge model | Always follows the session agent model | Dedicated settings card with provider/model **dropdowns** fed by the configured model catalog (v0.6.2+); pin stored as `judgeProvider` + `judgeModel` (hot reload); falls back to the session model → built-in Flash |
 | UI language | Chinese only, hard-coded | All copy goes through the DSH client locale service (zh/en live switch); `locale/*.json` localizes the plugin's display title/description |
 | DSH 0.2.x support | Profile path hard-coded to `profiles/web`; `permissionPresets.current(session.events)` is always `undefined` on 0.2.x, so the gate silently never engages | Profile path reads `DSH_PROFILE_DIR` / `DSH_PROFILE`; uses `permissionPresets.current(session)`; built-in fallback model aligned to `deepseek-flash` |
 | Flash call resilience | Always sends `reasoningEffort: 'off'`; relay/custom providers that reject it fail outright | On "does not support reasoning effort", retries once without the parameter (all other errors still fail safe) |
